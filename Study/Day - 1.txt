@@ -1,0 +1,365 @@
+Spring Boot request lifecycle — complete lesson
+I'll teach you the whole topic here, from the basics to interview-level understanding. You don't need to read the documentation yourself.
+We'll use your Spring Boot banking API as the running example. Your project already connects to Oracle through JDBC and Flyway; we'll build on that understanding without implementing the User and Account entities yet.
+By the end, you should be able to explain how an HTTP request enters Spring Boot, reaches a controller, executes business logic, accesses Oracle, and returns a JSON response.
+1. First, understand what happens when a request arrives
+Imagine a client sends this request:
+GET /api/accounts/101 HTTP/1.1
+Host: localhost:8080
+Accept: application/json
+
+
+The client could be Postman, a browser, a mobile app, or another backend service.
+Your Spring Boot application runs on port 8080. When the request arrives, several components work together to process it.
+1. Client
+Sends HTTP request
+
+2. Embedded Tomcat
+Accepts the request on port 8080
+
+3. Servlet filters
+Optional security, logging, CORS and other processing
+
+4. DispatcherServlet
+Spring MVC's front controller
+
+5. HandlerMapping
+Finds the matching controller method
+
+6. HandlerAdapter → Controller
+Invokes the selected method
+
+7. Service → Repository → Oracle
+Executes business logic and database access as required
+
+8. HTTP response
+Spring serializes the result to JSON and sends it back
+
+
+This is the typical synchronous Spring MVC flow. Some requests skip certain stages, and real applications may include additional components such as Spring Security, interceptors, transaction management, and exception handlers.
+
+2. Understand every component
+A. Embedded Tomcat — the web server
+Tomcat is the server that listens for incoming HTTP requests.
+In a typical Spring Boot web project, you don't need to install or configure Tomcat separately. Spring Boot starts an embedded Tomcat server for you.
+For example, your application logs showed that Tomcat initialized on port 8080.
+What Tomcat does:
+- Listens for incoming connections.
+- Receives HTTP requests.
+- Creates the servlet request and response objects.
+- Passes the request into the servlet processing pipeline.
+- Sends the completed HTTP response back to the client.
+Interview point: Tomcat is not the same as Spring MVC. Tomcat is the servlet container; Spring MVC is the framework that handles controller routing and request processing.
+B. Filters — processing before the controller
+A servlet filter can inspect or modify a request before it reaches the DispatcherServlet. It can also process the response on its way back.
+Common uses include:
+- Authentication and security checks.
+- Logging incoming requests.
+- Handling CORS.
+- Request and response wrapping.
+Filters are optional. A project doesn't automatically have every possible filter configured.
+For example, in a banking API, a security filter could reject an unauthenticated request before the controller runs.
+C. DispatcherServlet — the front controller
+This is the most important component in the Spring MVC request lifecycle.
+The Front Controller pattern means that requests enter through a central component that coordinates further processing.
+The DispatcherServlet does not contain all your banking business logic. Instead, it coordinates tasks such as:
+1. Finding the handler for a request.
+2. Getting the appropriate handler adapter.
+3. Invoking the handler.
+4. Processing the result.
+5. Handling exceptions through the configured exception-resolution mechanism.
+Think of it as the traffic controller for Spring MVC.
+D. HandlerMapping — finding the destination
+Suppose you have this controller method:
+@GetMapping("/api/accounts/{id}")
+public AccountResponse getAccount(@PathVariable Long id) {
+    // ...
+}
+
+
+When a request arrives for /api/accounts/101, Spring needs to identify the matching method.
+HandlerMapping performs that lookup using the registered request mappings and other matching conditions, such as HTTP method, path, headers, or parameters when specified.
+It identifies the handler; it doesn't execute the business logic itself.
+E. HandlerAdapter — invoking the handler
+After Spring identifies the handler, it needs to invoke it correctly.
+That is the job of HandlerAdapter.
+For a typical annotated REST controller, the adapter supports invocation of methods annotated with @RequestMapping, @GetMapping, @PostMapping, and similar annotations.
+The distinction is simple:
+- HandlerMapping: Which method should handle this request?
+- HandlerAdapter: How should Spring invoke that method?
+F. Controller — the HTTP-facing layer
+A controller accepts the request and connects it to the appropriate application operation.
+For example:
+@RestController
+@RequestMapping("/api/accounts")
+public class AccountController {
+
+    @GetMapping("/{id}")
+    public String getAccount(@PathVariable Long id) {
+        return "Requested account: " + id;
+    }
+}
+
+
+This is a simple illustrative controller, not a replacement for the entities and services you will build later.
+Here:
+- @RestController marks the class as a controller whose returned values are written to the response body by default.
+- @RequestMapping defines a shared URL prefix.
+- @GetMapping maps HTTP GET requests.
+- @PathVariable extracts 101 from /api/accounts/101.
+A controller should generally remain thin. It handles HTTP-specific concerns and delegates business operations to a service.
+G. Service — the business logic layer
+The service layer implements business rules.
+For a banking API, those rules could include:
+- Checking whether an account exists.
+- Verifying that an account is active.
+- Checking whether a withdrawal is permitted.
+- Coordinating a money transfer.
+For example, a transfer service might validate the sender's balance before coordinating a debit and credit in one database transaction.
+The controller shouldn't independently implement all those rules. Separating them into a service makes the logic easier to test and reuse.
+H. Repository — the data access layer
+A repository provides an abstraction for accessing persistent data.
+In a Spring Data JPA application, you might eventually have:
+public interface AccountRepository
+        extends JpaRepository<Account, Long> {
+}
+
+
+Spring Data JPA creates the repository implementation for you at runtime.
+The service can then call methods such as findById(id) rather than manually writing basic SQL for every operation.
+This example assumes you'll create the Account entity later.
+I. Oracle — the database
+If the request requires account information, the repository uses JPA and the configured JDBC infrastructure to interact with Oracle.
+Oracle executes the database query and returns the results.
+JPA maps the resulting database data into Java objects. The repository returns the result to the service, which passes the appropriate data back to the controller.
+Not every HTTP request requires a database query. A health endpoint or a simple calculation may finish without contacting Oracle.
+
+3. What happens after the controller returns?
+This is where many beginners get confused. They think the request finishes as soon as the controller returns a Java object. It doesn't.
+Consider this example:
+@GetMapping("/{id}")
+public AccountResponse getAccount(@PathVariable Long id) {
+    return accountService.getAccount(id);
+}
+
+
+Assume accountService.getAccount(id) returns an AccountResponse object.
+Because this method belongs to a @RestController, Spring normally writes the returned object to the HTTP response body.
+The response lifecycle
+
+1. Controller returns a Java object
+The method returns an AccountResponse, not a JSON string.
+
+2. Spring selects an HTTP message converter
+For a typical JSON REST API, Spring uses a suitable HttpMessageConverter, commonly Jackson-backed JSON conversion when configured.
+
+3. Java object becomes JSON
+For example:
+{
+  "accountId": 101,
+  "balance": 2500.00
+}
+
+
+4. Response goes back to the client
+Spring writes the body along with the appropriate HTTP status and headers. Tomcat sends the response over the connection.
+
+What does @ResponseBody mean?
+It tells Spring to write the return value into the HTTP response body rather than interpret it as a view name.
+@RestController combines @Controller and @ResponseBody, so its methods return response bodies by default.
+Compare these:
+Annotation	Typical behavior
+@Controller	Often used for MVC views; response-body behavior can be requested separately
+@ResponseBody	Writes the method's return value to the response body
+@RestController	Controller whose methods return response bodies by default
+For your banking REST API, @RestController is the usual choice.
+
+4. How request data reaches Java
+An HTTP request can contain information in several places. Spring provides annotations to extract that information.
+Path variable
+URL: /api/accounts/101
+@GetMapping("/{id}")
+public String get(@PathVariable Long id) {
+    return "Account " + id;
+}
+
+
+The value 101 is converted into a Long and assigned to id.
+
+
+Query parameter
+URL: /api/accounts?status=ACTIVE
+@GetMapping
+public String list(@RequestParam String status) {
+    return status;
+}
+
+
+Spring extracts ACTIVE from the query string.
+
+
+Request body
+Used commonly with POST and PUT requests
+@PostMapping
+public String create(@RequestBody CreateAccountRequest request) {
+    return "Received";
+}
+
+
+Spring reads the body, converts the JSON into a Java object, and passes it to the method.
+
+
+Request header
+Example: X-Request-ID: abc123
+@GetMapping("/status")
+public String status(
+        @RequestHeader("X-Request-ID") String requestId) {
+    return requestId;
+}
+
+
+Spring extracts the requested header value.
+
+
+Spring can also perform type conversion and data binding. If a value cannot be converted to the requested Java type, request processing can fail before your controller method runs.
+For example, /api/accounts/abc cannot normally be converted to a Long path variable.
+
+5. Validation and exception handling
+Real APIs receive invalid requests, missing records, and unexpected errors. Spring provides mechanisms to handle these cases.
+Validation
+Suppose a client wants to create an account or submit a user registration form. You can validate the request object before processing it.
+An illustrative DTO:
+public record CreateUserRequest(
+    @NotBlank String fullName,
+    @Email @NotBlank String email
+) {}
+
+
+And a controller method:
+@PostMapping("/users")
+public String createUser(
+        @Valid @RequestBody CreateUserRequest request) {
+    return "Request accepted";
+}
+
+
+Here:
+- @RequestBody converts JSON into the Java object.
+- @Valid triggers validation of the object.
+- @NotBlank rejects blank or whitespace-only names.
+- @Email checks the email against the constraint's expected format.
+You need the appropriate validation dependency and configuration for this to work. In an actual banking application, successful validation is not a substitute for business checks such as account ownership or balance limits.
+Exception handling
+Imagine /api/accounts/101 refers to an account that doesn't exist.
+Your service could throw an exception, such as AccountNotFoundException. Spring then gives configured exception handling mechanisms an opportunity to convert that failure into an HTTP response.
+A common pattern is @RestControllerAdvice with @ExceptionHandler.
+For example:
+@RestControllerAdvice
+public class ApiExceptionHandler {
+
+    @ExceptionHandler(AccountNotFoundException.class)
+    public ResponseEntity<String> handleNotFound(
+            AccountNotFoundException ex) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ex.getMessage());
+    }
+}
+
+
+This is illustrative; AccountNotFoundException would need to be defined in your project.
+The client could receive an HTTP 404 Not Found response instead of an unhandled server error.
+Remember: HandlerExceptionResolver is the Spring MVC mechanism involved in resolving exceptions during request processing. An exception handler defined through @ExceptionHandler is one way to participate in that process.
+
+6. Where do interceptors, filters, and security fit?
+These concepts often come up in interviews because they all execute around request processing, but they are not interchangeable.
+Component	Main purpose	Typical position
+Servlet filter	Request/response processing at the servlet level	Before and after the servlet chain
+Spring Security filter chain	Authentication and authorization	Within servlet filter processing
+HandlerInterceptor	Pre- and post-processing around Spring MVC handler execution	After handler mapping; before and after controller execution
+Controller	Handles the matched HTTP operation	Inside Spring MVC handler execution
+An interceptor typically provides methods such as preHandle, postHandle, and afterCompletion.
+For example, an interceptor could log how long a controller operation takes. A filter could add a request correlation ID or handle cross-cutting servlet-level concerns.
+For authentication and authorization, Spring Security's filter chain is a common place to enforce checks before a controller is invoked.
+These stages aren't guaranteed to exist in every application, and their exact ordering depends on configuration.
+
+7. Where does @Transactional fit?
+This is especially relevant to your banking API.
+Suppose a client requests a transfer of ₹1,000 from Account A to Account B. The operation involves multiple database changes:
+1. Debit ₹1,000 from Account A.
+2. Credit ₹1,000 to Account B.
+3. Commit both changes if the operation succeeds.
+What happens if the debit succeeds but the credit fails? You generally don't want the sender's money to disappear.
+A service method can use @Transactional:
+@Service
+public class TransferService {
+
+    @Transactional
+    public void transfer(/* transfer details */) {
+        // Validate the transfer.
+        // Debit the sender's account.
+        // Credit the receiver's account.
+    }
+}
+
+
+This is a conceptual example; it omits the actual account operations.
+With correctly configured transaction management, Spring typically starts or joins a transaction, executes the method, and commits on success. If an applicable exception triggers rollback, the transaction is rolled back.
+A few important details:
+- @Transactional is commonly implemented through Spring AOP proxies.
+- It normally works when a call passes through the relevant Spring-managed proxy.
+- By default, unchecked exceptions and errors trigger rollback; checked exceptions don't automatically trigger rollback unless configured.
+- Database transactions do not automatically make every external operation transactional. Sending an email, for example, cannot simply be rolled back with the database.
+For banking operations, transaction boundaries and concurrency control are critical. A simple controller-to-repository call is not enough to make a transfer safe.
+
+8. What happens when Spring Boot starts?
+Don't confuse application startup with the request lifecycle.
+Before your API can process normal requests, Spring Boot starts the application context.
+A simplified startup sequence is:
+SpringApplication.run()
+
+Environment and application configuration are prepared
+Spring creates and configures application beans
+Datasource and Flyway initialization; JPA initialization and validation
+Embedded Tomcat starts and the application becomes available
+
+The precise ordering of initialization steps depends on configuration and dependencies. In your project, Flyway runs database migrations during startup, and Hibernate's schema validation can check whether the mapped entities match the database schema.
+That explains why your application previously failed to start when Flyway migration initialization failed: the application context could not finish initializing its required beans.
+Once startup succeeds, the request lifecycle begins when clients send requests to the running server.
+
+9. The entire lifecycle in one example
+Let's put everything together.
+A client sends:
+GET /api/accounts/101
+
+
+Assume you've implemented an account endpoint.
+1. Tomcat receives the HTTP request.
+2. Configured servlet filters process it. Security may reject it here if authorization fails.
+3. DispatcherServlet receives the request.
+4. HandlerMapping finds the controller method matching GET /api/accounts/{id}.
+5. HandlerAdapter invokes the controller. Spring extracts 101 from the URL and converts it to the required Java type.
+6. The controller calls the service.
+7. The service applies business rules and calls the repository.
+8. The repository uses JPA/JDBC infrastructure to query Oracle.
+9. The result returns through the repository and service to the controller.
+10. Spring's message conversion writes the returned DTO as JSON.
+11. Tomcat sends the HTTP response, for example 200 OK, to the client.
+If the account doesn't exist, the service may throw an exception, and configured exception handling can produce 404 Not Found. If the request is malformed, validation or conversion may fail earlier. The exact status code depends on how the application handles each case.
+10. Interview questions you should be able to answer
+1. What is DispatcherServlet?
+2. What is the difference between HandlerMapping and HandlerAdapter?
+3. What is the difference between @Controller and @RestController?
+4. How does a Java object become JSON?
+5. What is the difference between a filter and an interceptor?
+6. What is the role of the service layer?
+7. Why use @Transactional?
+8. Why can a Spring Boot application fail before accepting requests?
+
+11. What you should remember
+You don't need to memorize every internal Spring class. Focus on these five things:
+1. Tomcat receives the request; DispatcherServlet coordinates Spring MVC processing.
+2. HandlerMapping finds the handler; HandlerAdapter invokes it.
+3. Controller → Service → Repository is a common application layering pattern, not a mandatory framework-enforced chain.
+4. Spring converts request and response bodies using message converters; JSON is common for REST APIs.
+5. Filters, interceptors, exceptions, validation, and transactions affect how requests are processed and completed.
