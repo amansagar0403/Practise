@@ -1,0 +1,491 @@
+Python for a Java Developer — Day 3 Study Session
+Yes. Let's do this in detail, using comparisons with Java and examples from your FastAPI project. We'll cover four topics: Python types, dictionaries (dict), comprehensions, and virtual environments (venv). Then we'll finish with three differences between Python and Java that you can explain in an interview.
+The goal is to understand the concepts, not just memorize syntax.
+1. Python's type system: Java vs Python
+Coming from Java, you're used to declaring the type of a variable explicitly:
+int age = 22;
+String name = "Aman";
+double balance = 5000.0;
+
+
+Python looks different:
+age = 22name = "Aman"balance = 5000.0
+
+
+
+You don't declare a variable's type in the assignment. Python determines the type of the object at runtime.
+1.1 Dynamic typing
+Consider this Python code:
+value = 10value = "hello"value = True
+
+
+
+This is valid Python. The name value can refer to objects of different types at different points in the program.
+In Java:
+int value = 10;
+value = "hello"; // Compilation error
+
+
+Java's int variable cannot be assigned a String.
+One important distinction: Python is dynamically typed, but it is not typeless. Every object still has a type. Python checks many type-related operations at runtime rather than enforcing variable declarations at compile time.
+For example:
+age = 22print(type(age))  # <class 'int'>name = "Aman"print(type(name))  # <class 'str'>balance = 5000.0print(type(balance))  # <class 'float'>
+
+
+
+Java equivalent:
+System.out.println(age.getClass());
+
+
+That specific Java example works with objects, not primitive variables like int.
+1.2 Python's main built-in types
+Python type	Example	Rough Java equivalent
+int	age = 22	int, long, Integer, Long
+float	price = 99.5	double, Double
+str	name = "Aman"	String
+bool	active = True	boolean, Boolean
+list	[1, 2, 3]	ArrayList<Integer>
+tuple	(1, 2, 3)	No exact built-in equivalent
+dict	{"id": 1}	HashMap<K, V>
+set	{1, 2, 3}	HashSet<Integer>
+NoneType	result = None	Roughly a null reference, depending on context
+Notice two differences:
+- Python uses True and False, with capital letters.
+- Python uses None to represent the absence of a value.
+Python integers can grow beyond Java's fixed-width int and long ranges, subject to available memory. Python's float is generally double-precision floating point.
+1.3 Type hints: Python's version of declaring intent
+You don't have to declare types in Python, but you can annotate them:
+age: int = 22name: str = "Aman"balance: float = 5000.0
+
+
+
+You can also annotate functions:
+def calculate_total(price: float, quantity: int) -> float:    return price * quantity
+
+
+
+Here:
+- price: float describes the expected parameter type.
+- quantity: int describes the expected parameter type.
+- -> float describes the intended return type.
+Compare that with Java:
+public double calculateTotal(double price, int quantity) {
+    return price * quantity;
+}
+
+
+The syntax differs, but the intention is similar.
+The important catch: Python type hints do not automatically enforce types at runtime.
+def greet(name: str) -> str:    return "Hello " + namegreet(123)  # Type hint doesn't automatically reject this call
+
+
+
+The function will raise a TypeError when it attempts to concatenate a string and an integer. A static type checker such as mypy or Pyright can flag the incorrect call before runtime.
+This is especially useful in your FastAPI project because annotations make the code easier to understand, and FastAPI uses type annotations to help validate requests and generate API documentation.
+1.4 Mutable vs immutable objects
+This is a fundamental Python concept that often surprises Java developers.
+Immutable objects cannot be changed in place. Common examples include int, float, str, and tuple.
+name = "Aman"name = name + " Sagar"
+
+
+
+Python doesn't modify the original string. It creates a new string and reassigns the name name to it.
+Mutable objects can be changed in place. Examples include list, dict, and set.
+numbers = [1, 2, 3]numbers.append(4)print(numbers)  # [1, 2, 3, 4]
+
+
+
+The same list object has been modified.
+Compare with Java:
+List<Integer> numbers = new ArrayList<>(List.of(1, 2, 3));
+numbers.add(4);
+
+
+Both Python lists and Java ArrayLists are mutable.
+A subtle point: a tuple is immutable, but it can contain a mutable object.
+data = ([1, 2], "hello")data[0].append(3)print(data)  # ([1, 2, 3], 'hello')
+
+
+
+You cannot replace data[0] with a different object, but you can mutate the list stored inside it.
+1.5 Equality vs identity
+Python has two operators worth distinguishing:
+a = [1, 2]b = [1, 2]print(a == b)  # Trueprint(a is b)  # False
+
+
+
+- == checks whether the values are equal.
+- is checks whether two references point to the same object.
+Java's == behaves differently for objects: it generally compares reference identity, while .equals() is typically used for logical equality.
+For example:
+String a = new String("hello");
+String b = new String("hello");
+
+System.out.println(a.equals(b)); // true
+System.out.println(a == b);      // false
+
+
+Rule: In Python, use == for value comparisons and is None when checking whether something is None.
+if result is None:    print("No result found")
+
+
+
+
+2. Dictionaries (dict) — Python's HashMap
+In Java, you've probably used HashMap to store key-value pairs.
+Map<String, Integer> scores = new HashMap<>();
+scores.put("Aman", 95);
+scores.put("Rahul", 88);
+
+System.out.println(scores.get("Aman")); // 95
+
+
+Python's equivalent is a dictionary:
+scores = {    "Aman": 95,    "Rahul": 88}print(scores["Aman"])  # 95
+
+
+
+A dictionary stores mappings from keys to values.
+2.1 Creating and accessing dictionaries
+user = {    "id": 1,    "name": "Aman",    "active": True}print(user["name"])   # Amanprint(user["id"])     # 1print(user["active"]) # True
+
+
+
+Unlike Java, you don't need to declare generic types such as Map<String, Object> to create a dictionary.
+However, a dictionary's keys must be hashable. Strings, integers, and many immutable objects are valid keys; lists and dictionaries cannot be keys.
+2.2 Adding, updating, and deleting values
+user = {"name": "Aman", "age": 22}# Add a new keyuser["city"] = "Delhi"# Update an existing keyuser["age"] = 23# Delete a keydel user["city"]print(user)# {'name': 'Aman', 'age': 23}
+
+
+
+Java equivalents:
+Python	Java
+user["city"] = "Delhi"	user.put("city", "Delhi")
+user["age"]	user.get("age")
+del user["city"]	user.remove("city")
+"age" in user	user.containsKey("age")
+2.3 What happens when a key is missing?
+This code:
+user = {"name": "Aman"}print(user["age"])
+
+
+
+Raises a KeyError because "age" does not exist.
+You have three common alternatives.
+Option A: Use get()
+age = user.get("age")print(age)  # None
+
+
+
+Or provide a default:
+age = user.get("age", 0)print(age)  # 0
+
+
+
+Option B: Check before accessing
+if "age" in user:    print(user["age"])
+
+
+
+Option C: Use a default with setdefault()
+user.setdefault("age", 0)print(user)  # {'name': 'Aman', 'age': 0}
+
+
+
+setdefault() inserts the default only if the key is absent; otherwise, it returns the existing value.
+2.4 Iterating over a dictionary
+user = {    "name": "Aman",    "age": 22,    "city": "Delhi"}for key in user:    print(key)
+
+
+
+By default, iterating over a dictionary gives its keys.
+To access both keys and values:
+for key, value in user.items():    print(key, value)
+
+
+
+Output:
+name Aman
+age 22
+city Delhi
+
+
+The .items() method provides key-value pairs. This is conceptually similar to iterating over entrySet() in Java:
+for (Map.Entry<String, Object> entry : user.entrySet()) {
+    System.out.println(entry.getKey() + " " + entry.getValue());
+}
+
+
+Python dictionaries preserve insertion order in modern Python versions. Java's HashMap does not guarantee insertion order.
+2.5 Counting values with a dictionary
+This is a very common coding interview pattern.
+Suppose you need to count the frequency of each number in a list:
+numbers = [1, 2, 2, 3, 3, 3]frequency = {}for number in numbers:    frequency[number] = frequency.get(number, 0) + 1print(frequency)# {1: 1, 2: 2, 3: 3}
+
+
+
+Understand the key expression:
+frequency.get(number, 0) + 1
+
+
+
+It reads the existing count if the number exists; otherwise, it starts at zero. Then it increments the count.
+Java equivalent:
+Map<Integer, Integer> frequency = new HashMap<>();
+
+for (int number : numbers) {
+    frequency.put(
+        number,
+        frequency.getOrDefault(number, 0) + 1
+    );
+}
+
+
+This pattern is useful for frequency counting, duplicate detection, grouping, and many array problems.
+2.6 When dictionaries are useful in your API
+Imagine your FastAPI endpoint receives information about an account:
+account = {    "account_number": "ACC100001",    "balance": 5000.0}
+
+
+
+You can access values by key:
+account_number = account.get("account_number")
+
+
+
+Dictionaries are excellent for general-purpose mappings and JSON-like data. In a real FastAPI application, Pydantic models are often preferable for structured request and response schemas because they provide validation and clearer field definitions.
+
+3. Comprehensions — concise collection creation
+Java developers often create collections using loops or streams.
+Java:
+List<Integer> squares = new ArrayList<>();
+
+for (int n : numbers) {
+    squares.add(n * n);
+}
+
+
+Python offers a concise alternative called a list comprehension.
+numbers = [1, 2, 3, 4, 5]squares = [n * n for n in numbers]print(squares)  # [1, 4, 9, 16, 25]
+
+
+
+The basic pattern is:
+[expression for item in iterable]
+
+
+
+Read it as: "Create a list containing this expression for every item in the iterable."
+3.1 List comprehension with a condition
+Suppose you only want even numbers.
+Traditional Python:
+even_numbers = []for n in numbers:    if n % 2 == 0:        even_numbers.append(n)
+
+
+
+List comprehension:
+even_numbers = [n for n in numbers if n % 2 == 0]print(even_numbers)  # [2, 4]
+
+
+
+The pattern is:
+[expression for item in iterable if condition]
+
+
+
+The if at the end filters which items are included.
+Java Stream equivalent:
+List<Integer> evenNumbers = numbers.stream()
+    .filter(n -> n % 2 == 0)
+    .collect(Collectors.toList());
+
+
+The concepts are similar, though Python comprehensions and Java Streams have different evaluation and API behavior.
+3.2 Transform and filter at the same time
+Suppose you want the squares of only the even numbers:
+numbers = [1, 2, 3, 4, 5, 6]squares_of_evens = [    n * n    for n in numbers    if n % 2 == 0]print(squares_of_evens)  # [4, 16, 36]
+
+
+
+The order matters:
+- for n in numbers iterates.
+- if n % 2 == 0 filters.
+- n * n produces each result.
+3.3 Dictionary comprehensions
+You can create a dictionary in one expression.
+numbers = [1, 2, 3, 4]squares = {n: n * n for n in numbers}print(squares)# {1: 1, 2: 4, 3: 9, 4: 16}
+
+
+
+Pattern:
+{key_expression: value_expression for item in iterable}
+
+
+
+With a filter:
+even_squares = {    n: n * n    for n in numbers    if n % 2 == 0}print(even_squares)  # {2: 4, 4: 16}
+
+
+
+3.4 Set comprehensions
+Set comprehensions create sets, which contain unique elements.
+numbers = [1, 2, 2, 3, 3, 3]unique_squares = {n * n for n in numbers}print(unique_squares)  # {1, 4, 9}
+
+
+
+Notice that duplicates disappear because the result is a set.
+3.5 Generator expressions
+A generator expression looks similar to a list comprehension, but uses parentheses:
+squares = (n * n for n in range(1, 6))
+
+
+
+Unlike a list comprehension, this does not immediately build a list of all the results. It produces values lazily as you iterate.
+for square in squares:    print(square)
+
+
+
+This can be useful for large sequences because you don't need to store all generated values at once.
+3.6 When not to use comprehensions
+A comprehension is not automatically better than a loop.
+This is readable:
+valid_ids = [user_id for user_id in user_ids if user_id > 0]
+
+
+
+But deeply nested comprehensions can become hard to understand. Prefer a normal loop when the logic includes multiple steps, complex branching, error handling, or side effects.
+Interview tip: Know list comprehensions, dictionary comprehensions, and the difference between a list comprehension and a generator expression.
+
+4. Virtual environments (venv)
+This is directly relevant to the setup you completed today.
+Your project has a .venv folder. It is a project-specific Python environment that keeps the project's installed packages separate from other Python projects.
+4.1 Why do we need a virtual environment?
+Imagine two projects:
+- Project C uses FastAPI version A.
+- Another project uses a different version of FastAPI.
+If both projects rely on the same global Python installation, installing or upgrading a package for one project can affect the other.
+A virtual environment gives each project its own environment for Python packages.
+Conceptually:
+Your computer
+Python installation
+
+
+Project A
+Java banking API
+Independent Java dependencies
+
+
+Project C
+Python ML API
+.venv with FastAPI, pytest and httpx
+
+
+
+
+Project A and Project C are separate projects. The Python virtual environment specifically isolates Python packages; it doesn't isolate your entire operating system or every system-level dependency.
+4.2 Creating a virtual environment
+You ran:
+py -m venv .venv
+
+
+Break it down:
+- py: the Python launcher on Windows.
+- -m venv: run Python's built-in venv module.
+- .venv: the folder in which the environment is created.
+You can name the folder something else, but .venv is a common convention.
+Java comparison: Java developers often use Maven or Gradle to manage dependencies and may use SDK managers to choose a JDK. Python's venv serves a different but related role: isolating the environment where Python packages are installed.
+4.3 Activating the environment
+In your PowerShell terminal:
+.\.venv\Scripts\Activate.ps1
+
+
+Your prompt showed:
+(.venv) PS C:\Users\Aman Sagar\OneDrive\Desktop\ml-inference-api>
+
+
+The (.venv) prefix indicates that activation has occurred.
+Activation primarily adjusts your shell's environment so that commands such as python and pip resolve to the environment's executables. It does not start a separate Python process or create a new operating system.
+4.4 Installing packages inside the environment
+You used:
+python -m pip install fastapi "uvicorn[standard]" pytest httpx
+
+
+This installs the packages into the environment associated with the python interpreter running that command.
+Why use python -m pip instead of just pip?
+Because it helps ensure pip runs under the Python interpreter you selected. This reduces the chance of installing a package into one Python environment and trying to use it from another.
+You also created requirements.txt:
+fastapi
+uvicorn[standard]
+pytest
+httpx
+
+
+This file records the project's direct dependencies. Another developer can install them with:
+python -m pip install -r requirements.txt
+
+
+For a fully reproducible deployment, exact dependency versions are generally preferable; your current file does not pin them.
+4.5 How to verify the active Python interpreter
+You ran:
+python -c "import sys; print(sys.executable)"
+
+
+Your output should point to something like:
+C:\Users\Aman Sagar\OneDrive\Desktop\ml-inference-api\.venv\Scripts\python.exe
+
+
+This is a more reliable check than just looking at the prompt.
+4.6 Do we commit .venv to Git?
+No. Normally, you don't commit the environment directory because it contains installed packages, generated files, and machine-specific paths.
+Your .gitignore should include:
+.venv/
+__pycache__/
+.pytest_cache/
+
+
+Commit your source code and dependency declarations instead.
+Remember: venv isolates dependencies; requirements.txt describes dependencies. They are not interchangeable.
+
+5. Connect everything to your FastAPI endpoint
+Your current endpoint looks like this:
+from fastapi import FastAPIapp = FastAPI(title="ML Inference API")@app.get("/health")def health_check() -> dict[str, str]:    return {"status": "ok"}
+
+
+
+Let's examine it through today's concepts.
+Python types
+def health_check() -> dict[str, str]:
+
+
+
+This is a type hint indicating that the function returns a dictionary with string keys and string values.
+Dictionary
+{"status": "ok"}
+
+
+
+This dictionary represents the response data. FastAPI converts it into a JSON HTTP response.
+Comprehensions
+You don't need a comprehension for this endpoint because you're returning one fixed value. Comprehensions become useful when transforming collections of records, such as selecting account numbers from a list.
+Virtual environment
+The endpoint runs using the packages installed in .venv. Your test uses the same environment when you execute:
+python -m pytest -v
+
+
+This is why verifying sys.executable matters.
+
+6. Name three differences between Python and Java that you encountered today
+Here are three strong answers you can use in your study notes or interview.
+Difference 1 — Typing
+Java: Statically typed; variable types are declared and checked by the compiler.
+Python: Dynamically typed; type hints can document expected types and support static analysis, but Python does not enforce them automatically at runtime.
+
+Difference 2 — Collections and syntax
+Java: Uses classes such as HashMap, ArrayList, and HashSet, with generic type declarations.
+Python: Provides built-in dict, list, and set types, along with concise list and dictionary comprehensions.
+
+Difference 3 — Project environments and dependencies
+Java: Commonly uses Maven or Gradle to manage libraries and build projects.
+Python: Often uses venv to isolate package installations and pip to install packages, with files such as requirements.txt to describe dependencies.
+
+A useful fourth difference, if you're asked for more: Java commonly uses braces and semicolons to delimit code, while Python uses indentation to define blocks and a more concise syntax.
