@@ -1,0 +1,224 @@
+REST Basics: HTTP Status Codes & Idempotency
+Let's study this from an SDE/backend interview perspective and connect it directly to your Spring Boot banking API.
+By the end, you should be able to explain what REST is, choose the correct HTTP status code for an API response, distinguish HTTP methods, and answer the key question: Which HTTP methods are idempotent, and why?
+1. What is REST?
+REST stands for Representational State Transfer. It is an architectural style for designing networked applications.
+In practical backend development, a REST-style API exposes resources through URLs and uses HTTP methods to operate on those resources.
+Think about your banking API:
+Resource	Endpoint	Purpose
+Accounts	/api/accounts	Work with the account collection
+One account	/api/accounts/123	Work with a specific account
+Users	/api/users	Work with the user collection
+A resource is something your API exposes, such as an account or user.
+How an HTTP request works
+Client — Postman / browser / frontend
+Sends method, URL, headers and optional body
+
+Spring Boot REST API
+Controller → Service → Repository
+
+Oracle Database
+Reads or changes stored data
+
+HTTP response
+Status code, headers and optional response body
+
+
+For example, when you request:
+GET /api/accounts/123
+
+
+Your API tries to retrieve account 123 and returns an HTTP response. That response includes a status code indicating the outcome.
+REST APIs commonly exchange JSON, but REST itself does not require JSON specifically.
+
+2. HTTP methods and their purpose
+HTTP methods tell the server what action the client intends to perform.
+Method	Typical purpose	Banking API example
+GET	Read a resource	Get account 123
+POST	Create a resource or submit an operation	Create a new account
+PUT	Replace a resource's representation	Replace an account's editable details
+PATCH	Partially update a resource	Change an account's display name
+DELETE	Delete a resource	Delete an eligible account
+HEAD	Like GET, but without the response body	Check resource metadata
+OPTIONS	Discover communication options	Check supported methods
+These are common conventions, not absolute rules for every API. For example, a banking system might prohibit deleting accounts entirely or model a financial transaction as a POST to a transactions resource.
+Your current endpoints follow these conventions:
+POST /api/accounts
+GET  /api/accounts/123
+GET  /api/accounts?page=0&size=10
+
+
+Notice that the HTTP method expresses the operation, while the URL identifies the resource.
+
+3. HTTP status codes you must know
+Status codes are grouped into five classes.
+2xx
+
+Success
+The request succeeded.
+200 OK · 201 Created · 204 No Content
+
+
+3xx
+
+Redirection
+Further action may be needed to complete the request.
+301 Moved Permanently · 304 Not Modified
+
+
+4xx
+
+Client error
+The request cannot be fulfilled as submitted, or the client lacks permission.
+400 Bad Request · 401 Unauthorized · 403 Forbidden · 404 Not Found · 409 Conflict · 422 Unprocessable Content
+
+
+5xx
+
+Server error
+The server failed to fulfil an apparently valid request.
+500 Internal Server Error · 502 Bad Gateway · 503 Service Unavailable
+
+
+
+The important status codes in your project
+Code	Meaning	Example
+200 OK	Successful request	Account retrieved
+201 Created	Resource created	Your POST /api/accounts succeeds
+204 No Content	Success with no response body	Successful operation with nothing to return
+400 Bad Request	Invalid request	Negative page number or invalid input
+401 Unauthorized	Authentication is missing or invalid	Invalid login token
+403 Forbidden	Authenticated client lacks permission	User tries an operation they aren't allowed to perform
+404 Not Found	Resource not found	Account ID doesn't exist
+409 Conflict	Conflict with current resource state	Duplicate account number
+422 Unprocessable Content	Request content cannot be processed semantically	Often used for validation errors by some frameworks
+500 Internal Server Error	Unexpected server failure	Unhandled exception
+A useful interview distinction: 401 is about authentication; 403 is about authorization. In everyday terms, 401 means the client hasn't successfully established who it is, while 403 means the server refuses the requested action for that client.
+The exact status for a validation error can depend on the API's conventions. Your Spring Boot implementation uses 400 Bad Request.
+Example: why 201 Created for POST?
+Your account creation controller returns:
+return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+
+This communicates that the server successfully created the resource. Returning 200 OK can also be valid for some POST operations, but 201 Created is a particularly good fit when a new resource is created.
+
+4. Idempotency — the core concept
+This is the most important part of today's study.
+An operation is idempotent if repeating the same request has the same intended effect on server state as performing it once.
+In mathematical terms, an operation \(f\) is idempotent when:
+\[
+f(f(x)) = f(x)
+\]
+
+In HTTP, the definition focuses on the intended effect on the server, not whether every response is byte-for-byte identical.
+Banking example
+Imagine an account has a balance of ₹5,000.
+You send a request to set a display preference to "compact":
+PUT /api/accounts/123/preferences
+Content-Type: application/json
+
+{"displayMode": "compact"}
+
+
+The first request sets the preference to compact.
+If you send the same request five more times, the intended final state is still "compact". Repeating the request doesn't keep changing the state.
+That is idempotent behavior.
+Now imagine a transfer operation:
+POST /api/transfers
+Content-Type: application/json
+
+{"fromAccount": 123, "toAccount": 456, "amount": 1000}
+
+
+If each request performs another transfer, sending it five times could transfer ₹5,000 instead of ₹1,000. That's a non-idempotent operation by default.
+The key distinction
+Idempotent
+Repeat the request → same intended final state.
+
+
+Non-idempotent
+Repeating the request can create additional effects.
+
+
+
+Responses, logs, timestamps, metrics or other incidental effects may differ even when a method is idempotent.
+
+Why does idempotency matter? Imagine a client sends a request, the server completes it, but the response gets lost. The client doesn't know whether the operation succeeded and retries. Idempotent methods make safe retries easier because repeating the request shouldn't cause an additional intended state change.
+For financial operations, APIs often use idempotency keys or unique transaction identifiers to prevent duplicate processing when clients retry a request. A POST endpoint can be designed to provide idempotent behavior with such safeguards, even though POST is not idempotent by HTTP's general method definition.
+5. Which HTTP methods are idempotent, and why?
+Here is the interview-ready table.
+HTTP method	Idempotent?	Why?
+GET	Yes	Reading a resource repeatedly should not change its state.
+HEAD	Yes	Like GET, but returns no response body; it should not change resource state.
+OPTIONS	Yes	Requests communication options without changing resource state.
+PUT	Yes	Replacing a resource with the same representation repeatedly should produce the same intended state.
+DELETE	Yes	Deleting the same resource repeatedly has the same intended final effect: the resource is absent.
+POST	No, by default	Repeated requests may create multiple resources or perform an operation multiple times.
+PATCH	Not guaranteed	It depends on the particular patch operation and how it is implemented.
+Why is DELETE idempotent if the second request returns 404?
+Imagine deleting account 123.
+First request:
+DELETE /api/accounts/123
+
+
+Response: 204 No Content. The resource is deleted.
+Second request:
+DELETE /api/accounts/123
+
+
+Response: 404 Not Found. The resource is already absent.
+The responses differ, but the intended final server state is the same: account 123 is absent. Idempotency does not require identical responses.
+In a real banking application, you might not permit account deletion at all. The example illustrates the HTTP semantics, not a recommendation to delete financial records.
+Why is PUT idempotent?
+Consider this request:
+PUT /api/accounts/123/preferences
+Content-Type: application/json
+
+{"displayMode": "compact"}
+
+
+PUT is conventionally used to create or replace the target resource's state. Sending the same representation repeatedly should leave that resource in the same intended state.
+Compare that with an operation like "increase the balance by ₹100." If repeated requests increase the balance each time, that operation is not idempotent. Whether it uses PUT or POST, the behavior must respect the intended method semantics.
+Why isn't POST idempotent?
+Suppose your existing API accepts:
+POST /api/accounts
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "accountNumber": "ACC200001",
+  "balance": 1000
+}
+
+
+If the first request creates an account, repeating it might:
+- Create another account, if the API permits it.
+- Return a conflict because the account number already exists.
+- Return the previously created result, if the API implements idempotency.
+POST is not guaranteed to be idempotent by HTTP. Your duplicate account-number constraint may prevent duplicate records for that particular request, but it doesn't make every POST operation idempotent.
+Is PATCH always non-idempotent?
+No. PATCH is not guaranteed to be idempotent, but individual PATCH operations can be idempotent.
+For example, setting a preference to "compact" repeatedly is idempotent:
+{"displayMode": "compact"}
+
+
+An operation that increments a value by one each time is not idempotent:
+{"operation": "increment"}
+
+
+The behavior of the operation matters.
+
+6. Idempotent vs safe methods
+These concepts are related but different.
+- A safe method is intended to be read-only with respect to the requested resource state.
+- An idempotent method has the same intended effect on server state when repeated.
+Method	Safe?	Idempotent?
+GET	Yes	Yes
+HEAD	Yes	Yes
+OPTIONS	Yes	Yes
+PUT	No	Yes
+DELETE	No	Yes
+POST	No	No, by default
+PATCH	No	Not guaranteed
+For example, DELETE is idempotent but not safe because it changes server state.
+A GET request should not trigger a financial transfer or otherwise change the requested resource's state. Incidental effects such as access logs or metrics do not make GET unsafe.
